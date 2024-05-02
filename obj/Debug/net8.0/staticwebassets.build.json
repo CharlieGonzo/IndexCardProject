@@ -1,0 +1,11 @@
+{
+  "Version": 1,
+  "Hash": "9ygzV2EkRqovpNMP3bLQNwBi7Ezlic2bLUS6p7pXaOI=",
+  "Source": "IndexCardBackendApi",
+  "BasePath": "_content/IndexCardBackendApi",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": []
+}
