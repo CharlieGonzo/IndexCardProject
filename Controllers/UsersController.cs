@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using IndexCardBackendApi.Models;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.AspNetCore.Cors;
 
 namespace IndexCardBackendApi.Controllers
 {
@@ -32,6 +34,37 @@ namespace IndexCardBackendApi.Controllers
             .ToListAsync();
         }
 
+        
+
+        [HttpPost("login")]
+        public async Task<ActionResult<UserDTO>> Login([FromBody]LoginInfo info){
+            Console.WriteLine(info.username +" " + info.password);
+            User user = await _context.Users.Where(x => x.Username == info.username).Include(p => p.Decks)
+            .ThenInclude(c => c.Cards).SingleOrDefaultAsync();
+            if(user == null){
+                return BadRequest("invalid username or password");
+            }
+
+            if(user.Password != info.password){
+                return BadRequest("invalid password");
+            }
+
+            return Ok(UserToDTO(user));
+        }
+
+          // GET: api/Users
+       
+        private async Task<ActionResult<IEnumerable<User>>> GetUsersFull()
+        {
+            return await _context.Users
+            .Include(p => p.Decks)
+            .ThenInclude(c => c.Cards)
+            .ToListAsync();
+        }
+
+        
+
+
         // GET: api/Users/5
         [HttpGet("{id}")]
         public async Task<ActionResult<UserDTO>> GetUser(long id)
@@ -47,7 +80,7 @@ namespace IndexCardBackendApi.Controllers
         }
 
         //Put api/Users/add/{name}
-        [HttpPut("/add/{Id}/{name}")]
+        [HttpPut("add/{Id}/{name}")]
         public async Task<IActionResult> addCardDeck(String name,long Id){
             var user = _context.Users.Include(p => p.Decks).ThenInclude(c => c.Cards).FirstOrDefault(u => u.Id == Id);
             if (user == null)
@@ -103,14 +136,14 @@ namespace IndexCardBackendApi.Controllers
 
         // POST: api/Users
         [HttpPost]
-        public async Task<ActionResult<UserDTO>> PostUser(LoginInfo user)
+        public async Task<ActionResult<UserDTO>> PostUser([FromBody]LoginInfo user)
         {   
             if(user.username.IsNullOrEmpty() || user.password.IsNullOrEmpty()){
                 return BadRequest();
             }
             var use = await _context.Users.FirstOrDefaultAsync(p => p.Username == user.username && p.Password == user.password);
             if(use != null){
-                return UserToDTO(use);
+                return BadRequest("user already exist");
             }
             var NewUser = new User(user.username,user.password);
             _context.Users.Add(NewUser);
