@@ -9,6 +9,9 @@ using IndexCardBackendApi.Models;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.AspNetCore.Cors;
+using Microsoft.AspNetCore.Http.HttpResults;
+using System.Net;
+
 
 namespace IndexCardBackendApi.Controllers
 {
@@ -27,6 +30,7 @@ namespace IndexCardBackendApi.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<UserDTO>>> GetUsers()
         {
+            //returns list of users with all of their children as well
             return await _context.Users
             .Include(p => p.Decks)
             .ThenInclude(c => c.Cards)
@@ -38,9 +42,11 @@ namespace IndexCardBackendApi.Controllers
 
         [HttpPost("login")]
         public async Task<ActionResult<UserDTO>> Login([FromBody]LoginInfo info){
-            Console.WriteLine(info.username +" " + info.password);
+          
             User user = await _context.Users.Where(x => x.Username == info.username).Include(p => p.Decks)
             .ThenInclude(c => c.Cards).SingleOrDefaultAsync();
+            
+            //if user is null return badRequest
             if(user == null){
                 return BadRequest("invalid username or password");
             }
@@ -52,51 +58,27 @@ namespace IndexCardBackendApi.Controllers
             return Ok(UserToDTO(user));
         }
 
-          // GET: api/Users
-       
-        private async Task<ActionResult<IEnumerable<User>>> GetUsersFull()
-        {
-            return await _context.Users
-            .Include(p => p.Decks)
-            .ThenInclude(c => c.Cards)
-            .ToListAsync();
-        }
-
         
-
-
         // GET: api/Users/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<UserDTO>> GetUser(long id)
+        public async Task<ActionResult<UserDTO>> GetUser(long Id)
         {
-           var user =  _context.Users.Include(p => p.Decks).ThenInclude(c => c.Cards).FirstOrDefault(u => u.Id == id);
+            //retrieve the user from database
+            var user = await _context.Users
+                    .Include(u => u.Decks)
+                    .ThenInclude(d => d.Cards)
+                    .FirstOrDefaultAsync(u => u.Id == Id);
             
+            //check if user is null, if null, return notFound()
             if (user == null)
             {
                 return NotFound();
             }
 
+            //return DTO of User
             return new UserDTO{Id = user.Id,Username = user.Username,Decks = user.Decks};
         }
 
-        //Put api/Users/add/{name}
-        [HttpPut("add/{Id}/{name}")]
-        public async Task<IActionResult> addCardDeck(String name,long Id){
-            var user = _context.Users.Include(p => p.Decks).ThenInclude(c => c.Cards).FirstOrDefault(u => u.Id == Id);
-            if (user == null)
-            {
-                return BadRequest();
-            }
-            user.AddDeck(name);
-            UserDTO use =  new UserDTO{
-                Id = user.Id,
-                Username = user.Username,
-                Decks = user.Decks
-
-            };
-            await PutUser(Id,use);
-            return NoContent();
-        }
 
 
 
@@ -132,6 +114,44 @@ namespace IndexCardBackendApi.Controllers
             }
 
             return NoContent();
+        }
+        
+
+        
+         [HttpPatch("{id}")]
+        public async Task<ActionResult<HttpStatusCode>> AddDeck(long id,[FromBody]String name)
+        {
+            if(!UserExists(id)){
+                return BadRequest();
+            }
+
+            var UpdatedUser = await _context.Users.FindAsync(id);
+
+            if(UpdatedUser == null){
+                return HttpStatusCode.InternalServerError;
+            }
+
+            UpdatedUser.AddDeck(name);
+
+            //update the user in the database after changes
+            _context.Entry(UpdatedUser).State = EntityState.Modified;
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!UserExists(id))
+                {
+                    return HttpStatusCode.NotFound;
+                }
+                else
+                {
+                    throw;
+                }
+            }
+
+            return HttpStatusCode.NoContent;
         }
 
         // POST: api/Users
